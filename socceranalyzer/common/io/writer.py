@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 
 
-class Writter:
+class Writer:
     """
     A class used to write analysis to a json file.
 

@@ -15,7 +15,7 @@ class Agent2D:
                     team_side: str
                         Which side the player is playing for
                     number_id int
-                        An identifier that differenciates the agents
+                        An identifier that differentiates the agents
                     position: list[tuple(float, float)]
                         A list containing the player's position in each cycle. List has the lenght of the number of cycles
                     stamina: list[int)]

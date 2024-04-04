@@ -14,8 +14,10 @@ class Ball:
                 x coordinates of the ball in the field
             y: float
                 y coordinates of the ball in the field
+            z: float
+                z coordinates of the ball in the field
     """
-    def __init__(self,x,y):
+    def __init__(self, x, y, z=0.0):
         """
         Constructs all the necessary attributes for the ball object.
 
@@ -25,16 +27,23 @@ class Ball:
             x coordinates of the ball in the field
         y: float
             y coordinates of the ball in the field
+        z: float
+            z coordinates of the ball in the field
 
         """
         self.__x = x
         self.__y = y
+        self.__z = z
     
     def positionAt(self, dataframe, category, cycle):
         ball_x = dataframe.loc[cycle, str(category.BALL_X)]
         ball_y = dataframe.loc[cycle, str(category.BALL_Y)]
+        ball_z = 0.0
 
-        return Point(ball_x, ball_y)
+        if hasattr(category, 'BALL_Z'):
+            ball_z = dataframe.loc[cycle, str(category.BALL_Z)]
+
+        return Point(ball_x, ball_y, ball_z)
     
     @property
     def x(self):
@@ -57,3 +66,14 @@ class Ball:
     @y.setter
     def y(self, y_position):
         self.__y = y_position
+
+    @property
+    def z(self):
+        """
+        Returns the attribute z (z coordinates of the ball).
+        """
+        return self.__z
+
+    @z.setter
+    def z(self, z_position):
+        self.__z = z_position

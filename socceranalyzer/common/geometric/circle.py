@@ -73,4 +73,3 @@ class Circle:
                         dist (float): Distance value.
         """
         return distance(self.__center, point)
-

@@ -1,22 +1,24 @@
 from time import time
+
+import pandas as pd
+
 from socceranalyzer.common.analysis.speed import Speed
-
 from socceranalyzer.common.chore.abstract_factory import AbstractFactory
-from socceranalyzer.common.chore.builder import Builder
-
 from socceranalyzer.common.basic.match import Match
 from socceranalyzer.common.collections.collections import EvaluatorCollection
 from socceranalyzer.common.enums.sim2d import SIM2D
 from socceranalyzer.common.enums.ssl import SSL
 from socceranalyzer.common.enums.vss import VSS
+from socceranalyzer.common.enums.hl_kid import HLKid
 from socceranalyzer.common.analysis.ball_possession import BallPossession
 from socceranalyzer.common.analysis.foul_charge import FoulCharge
 from socceranalyzer.common.analysis.playmodes import Playmodes
 from socceranalyzer.common.analysis.penalty import Penalty
-from socceranalyzer.common.analysis.ball_history import BallHistory
+from socceranalyzer.common.analysis.object_history import ObjectHistory
 from socceranalyzer.common.analysis.corners_occurrencies import CornersOcurrencies
 from socceranalyzer.common.analysis.passing_accuracy import PassingAccuracy
 from socceranalyzer.common.analysis.intercept_counter import InterceptCounter
+from socceranalyzer.common.dataframe.filter_self_localization import FilterSelfLocalizationCovariance, FilterBallCovariance
 from socceranalyzer.agent2D.analysis.tester_free_kick import TesterFK
 from socceranalyzer.common.analysis.time_after_events import TimeAfterEvents
 from socceranalyzer.common.analysis.stamina import Stamina
@@ -25,6 +27,7 @@ from socceranalyzer.common.analysis.heatmap import Heatmap
 from socceranalyzer.common.evaluators.passing import Passing
 from socceranalyzer.common.analysis.find_goals import FindGoals
 from socceranalyzer.common.analysis.goalkeeper import GoalkeeperAnalysis
+from socceranalyzer.common.analysis.base_footprint import BaseFootprint
 from socceranalyzer.utils.run_configuration import RunConfiguration
 from socceranalyzer.utils.logger import Logger
 
@@ -33,8 +36,8 @@ class MatchAnalyzer(AbstractFactory):
         ==== Add new analysis in this class ====
         - A class that represents a implementation of AbstractFactory. 
         - Acts as a endpoint to connect all created analysis in the framework.
-        - Creates analysis objects, run them and then provide secure acess to it's computed values.
-        - At instantiation, it has no analysis. At runtime, generates analysis setted in self._run_analysis().
+        - Creates analysis objects, run them and then provide secure access to it's computed values.
+        - At instantiation, it has no analysis. At runtime, generates analysis set in self._run_analysis().
         
         MatchAnalyzer(math: Match)
 
@@ -180,7 +183,7 @@ class MatchAnalyzer(AbstractFactory):
 
     @property
     def playmodes(self):
-        return self.__playmodes
+        return self._playmodes
 
     @property
     def shooting(self):
@@ -197,6 +200,10 @@ class MatchAnalyzer(AbstractFactory):
     @property
     def goalkeeper(self):
         return self.__goalkeeper
+
+    @property
+    def ball_history(self):
+        return self._ball_history
 
     @property
     def analysis_dict(self):
@@ -232,14 +239,6 @@ class MatchAnalyzer(AbstractFactory):
         """
         Logger.data(f'{self.__match.team_left_name} {self.__match.score_left} x {self.__match.score_right} {self.__match.team_right_name}')
 
-    def _generate_evaluators(self):
-        if self.__cat is SIM2D:
-            pass
-        elif self.__cat is SSL:
-            self.__evaluators = EvaluatorCollection(self.match)
-        elif self.__cat is VSS:
-            raise NotImplementedError
-
     def _run_analysis(self):
         if self.__cat is SIM2D:
             if self.config.ball_possession:
@@ -260,7 +259,7 @@ class MatchAnalyzer(AbstractFactory):
 
             if self.config.playmodes:
                 setattr(self, "__playmodes", None)
-                self.__playmodes = Playmodes(self.__match.dataframe, self.category, self._DEBUG)
+                self._playmodes = Playmodes(self.__match.dataframe, self.category, self._DEBUG)
 
             if self.config.corners_occurrencies:
                 setattr(self, "__corners_occurrencies", None)
@@ -283,7 +282,7 @@ class MatchAnalyzer(AbstractFactory):
 
             if self.config.ball_history:
                 setattr(self, "__ball_history", None)
-                self.__ball_history = BallHistory(self.__match.dataframe, self.category, self._DEBUG)
+                #self._ball_history = ObjectHistory(self.__match.dataframe, self.category, self._DEBUG)
 
             if self.config.stamina:
                 setattr(self, "__stamina", None)
@@ -320,6 +319,60 @@ class MatchAnalyzer(AbstractFactory):
         elif self.__cat is VSS:
             raise NotImplementedError
             # add VSS analysis
+        
+        elif self.__cat is HLKid:
+            df = self.__match.dataframe.copy()
+            # Single analysis
+            self._playmodes = Playmodes(df, self.category, self._DEBUG)
+            self._ball_history = ObjectHistory(df, self.category, self._DEBUG, "ball.frame.pose")
+
+            # Analysis for each player
+            for team in [('l', 1), ('r', 2)]:
+                for player in range(1, 5):
+                    df = BaseFootprint(df, self.category, self._DEBUG, team[1], player).results()
+
+            self.left_player_1_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player1.base_footprint")
+            self.left_player_2_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player2.base_footprint")
+            self.left_player_3_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player3.base_footprint")
+            self.left_player_4_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player4.base_footprint")
+            self.right_player_1_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player1.base_footprint")
+            self.right_player_2_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player2.base_footprint")
+            self.right_player_3_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player3.base_footprint")
+            self.right_player_4_history = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player4.base_footprint")
+
+            speed_df = df
+            self.left_player_1_speed = Speed(speed_df, self.category, 1, "l", self._DEBUG)
+            self.left_player_2_speed = Speed(speed_df, self.category, 2, "l", self._DEBUG)
+            self.left_player_3_speed = Speed(speed_df, self.category, 3, "l", self._DEBUG)
+            self.left_player_4_speed = Speed(speed_df, self.category, 4, "l", self._DEBUG)
+            self.right_player_1_speed = Speed(speed_df, self.category, 1, "r", self._DEBUG)
+            self.right_player_2_speed = Speed(speed_df, self.category, 2, "r", self._DEBUG)
+            self.right_player_3_speed = Speed(speed_df, self.category, 3, "r", self._DEBUG)
+            self.right_player_4_speed = Speed(speed_df, self.category, 4, "r", self._DEBUG)
+
+            # Self-localization
+            self.left_player_1_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player1.team_comm.self_localization.pose", filter=FilterSelfLocalizationCovariance)
+            self.left_player_2_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player2.team_comm.self_localization.pose", filter=FilterSelfLocalizationCovariance)
+            self.left_player_3_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player3.team_comm.self_localization.pose", filter=FilterSelfLocalizationCovariance)
+            self.left_player_4_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player4.team_comm.self_localization.pose", filter=FilterSelfLocalizationCovariance)
+            self.right_player_1_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player1.team_comm.self_localization.pose", mirror=True, filter=FilterSelfLocalizationCovariance)
+            self.right_player_2_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player2.team_comm.self_localization.pose", mirror=True, filter=FilterSelfLocalizationCovariance)
+            self.right_player_3_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player3.team_comm.self_localization.pose", mirror=True, filter=FilterSelfLocalizationCovariance)
+            self.right_player_4_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player4.team_comm.self_localization.pose", mirror=True, filter=FilterSelfLocalizationCovariance)
+
+            # Ball localization
+            self.left_player_1_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player1.team_comm.ball")
+            self.left_player_2_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player2.team_comm.ball")
+            self.left_player_3_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player3.team_comm.ball")
+            self.left_player_4_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team1.player4.team_comm.ball")
+            self.right_player_1_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player1.team_comm.ball", mirror=True)
+            self.right_player_2_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player2.team_comm.ball", mirror=True)
+            self.right_player_3_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player3.team_comm.ball", mirror=True)
+            self.right_player_4_ball_localization = ObjectHistory(df, self.category, self._DEBUG, "teams.team2.player4.team_comm.ball", mirror=True)
+
+        else:
+            raise ValueError("Invalid category.")
+
 
     def collect_results(self):
         raise NotImplementedError

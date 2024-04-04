@@ -22,7 +22,23 @@ class Rectangle:
         @bottom_right.setter
         def bottom_right(self, point):
             self.__bottom_right = point
-        
+
+        @property
+        def left(self):
+            return self.__top_left.x
+
+        @property
+        def right(self):
+            return self.__bottom_right.x
+
+        @property
+        def top(self):
+            return self.__top_left.y
+
+        @property
+        def bottom(self):
+            return self.__bottom_right.y
+
         @property
         def width(self):
             return self.__width
@@ -36,6 +52,3 @@ class Rectangle:
                 return True
             else:
                 return False
-
-
-

@@ -1,9 +1,12 @@
-import pandas
+from typing import Optional, Dict
+
+import pandas as pd
 
 from socceranalyzer.common.basic.team import Team
 from socceranalyzer.common.enums.vss import VSS
 from socceranalyzer.common.enums.sim2d import SIM2D
 from socceranalyzer.common.enums.ssl import SSL
+from socceranalyzer.common.enums.hl_kid import HLKid
 from socceranalyzer.common.basic.field import Field
 from socceranalyzer.common.basic.ball import Ball
 from socceranalyzer.common.basic.team import Team
@@ -17,7 +20,7 @@ class Match:
         A class that represents a soccer match and its core components such as
         players, fouls, corners, etc
 
-        Match(dataframe: pandas.DataFrame, category: enum)
+        Match(dataframe: pd.DataFrame, category: enum)
 
         Attributes
         ----------
@@ -46,16 +49,16 @@ class Match:
                     a list with integers referencing the cycle of goals occurrences
                 corners: [int]
                     a list with integers referencing the cycle of corners occurrences
-
-
-
     """
-    def __init__(self, dataframe: pandas.DataFrame, category: SIM2D | SSL | VSS = None):
+
+    def __init__(self, dataframe: pd.DataFrame, category: SIM2D | SSL | VSS | HLKid, meta_data: Optional[Dict] = None):
         self.__category = category
 
         self.__df = dataframe
-        self.__score_left: int = None
-        self.__score_right: int = None
+        self.__meta_data = meta_data
+
+        self.__score_left: Optional[int] = None
+        self.__score_right: Optional[int] = None
         self.__winning_team: str = ""
         self.__losing_team: str = ""
 
@@ -64,15 +67,13 @@ class Match:
         self.__corners = []
 
         try:
-            if self.category is None:
-                raise ValueError('A Match requires a Category as argument and none was given')
-            elif self.category is VSS: 
+            if self.category in [VSS, SSL]:
                 raise ValueError(f'This version of SoccerAnalyzer does not support {self.category} matches.\n'
                 f'Please visit https://github.com/robocin/SoccerAnalyzer for more information.')
         except ValueError as err:
             Logger.error("Match failed: " + err.args[0])
         else:
-            builder = Builder(self.__df, self.__category)
+            builder = Builder(self.__df, self.__category, self.__meta_data)
 
             self.__field: Field = builder.fieldBuilder() 
             self.__ball: Ball = builder.ballBuilder()
@@ -83,8 +84,6 @@ class Match:
             self.__players_right: list[Agent2D] = builder.playerBuilder(self.__team_right)
 
             self.__teams = (self.__team_left, self.__team_right)
-
-        
 
 
     @property

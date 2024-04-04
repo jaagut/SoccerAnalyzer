@@ -4,3 +4,5 @@ pandas
 matplotlib
 seaborn
 numpy
+transforms3d
+pyarrow

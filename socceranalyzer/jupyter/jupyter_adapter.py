@@ -1,11 +1,14 @@
-from typing import Literal
+from typing import Literal, Optional
+
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle, Arc
-
-import seaborn as sns
-import os
 
 import socceranalyzer
 from socceranalyzer.common.analysis.speed import Speed
@@ -298,7 +301,7 @@ class JupyterAdapter:
         ax.plot([Landmarks.RIGHT_BOTTOM.value[0], Landmarks.RIGHT_TOP.value[0]], 
                 [Landmarks.RIGHT_BOTTOM.value[1], Landmarks.RIGHT_TOP.value[1]], color=linecolor)
         ax.plot([Landmarks.CENTER_BOTTOM.value[0], Landmarks.CENTER_TOP.value[0]], 
-                [Landmarks.CENTER_BOTTOM.value[1], Landmarks.CENTER_TOP.value[1]], color=linecolor)        
+                [Landmarks.CENTER_BOTTOM.value[1], Landmarks.CENTER_TOP.value[1]], color=linecolor)
         center_circle = Circle(Landmarks.CENTER.value, 9.15, edgecolor=linecolor, facecolor=pitch_color)
         center_spot = Circle(Landmarks.CENTER.value, .3, color=linecolor)
         ax.add_patch(center_circle)
@@ -395,7 +398,59 @@ class JupyterAdapter:
         
         return fig, axs
 
-    
+    def draw_HLKid_pitch(self, field, border_width=1.0, line_width: float = 3.0, stroke_color: str = 'white', background_color: str = 'green'):
+        fig, ax = plt.subplots(figsize=(field.length + 2 * border_width, field.width + 2 * border_width))
+        ax.set_xlim([0, field.length + 2 * border_width])
+        ax.set_ylim([0, field.width + 2 * border_width])
+        ax.axis('off')
+
+        fig.set_facecolor(background_color)  # set the background color
+
+        center_point: np.ndarray = np.array([(field.length / 2) + border_width, (field.width / 2) + border_width])
+
+        # field dimensions
+        ax.add_patch(Rectangle(center_point + np.array([-field.length/2, -field.width/2]), field.length, field.width, fill=False, linewidth=line_width, color=stroke_color))
+
+        # center circle and a little dot
+        ax.add_patch(Arc(center_point, field.center_circle_diameter, field.center_circle_diameter, angle=0, linewidth=line_width, color=stroke_color))
+        ax.add_patch(Circle(center_point, radius=0.1, color=stroke_color))
+
+        # add center line as a patch
+        center_line_width = 0.05
+        ax.add_patch(Rectangle(center_point + np.array([-center_line_width/2, -field.width/2]), center_line_width, field.width, fill=True, color=stroke_color))
+
+        # small penalty areas
+        ax.add_patch(Rectangle(center_point + np.array([field.small_penalty_area_left.left, field.small_penalty_area_left.bottom]),
+                                field.small_penalty_area_left.width, field.small_penalty_area_left.height,
+                                fill=False, linewidth=line_width, color=stroke_color))
+        ax.add_patch(Rectangle(center_point + np.array([field.small_penalty_area_right.left, field.small_penalty_area_right.bottom]),
+                                field.small_penalty_area_right.width, field.small_penalty_area_right.height,
+                                fill=False, linewidth=line_width, color=stroke_color))
+
+        # penalty areas
+        ax.add_patch(Rectangle(center_point + np.array([field.penalty_area_left.left, field.penalty_area_left.bottom]),
+                                field.penalty_area_left.width, field.penalty_area_left.height,
+                                fill=False, linewidth=line_width, color=stroke_color))
+        ax.add_patch(Rectangle(center_point + np.array([field.penalty_area_right.left, field.penalty_area_right.bottom]),
+                                field.penalty_area_right.width, field.penalty_area_right.height,
+                                fill=False, linewidth=line_width, color=stroke_color))
+
+        # goals
+        ax.add_patch(Rectangle(center_point + np.array([field.goalpost_left.left, field.goalpost_left.bottom]),
+                                field.goalpost_left.width, field.goalpost_left.height,
+                                fill=False, linewidth=line_width, color=stroke_color))
+        ax.add_patch(Rectangle(center_point + np.array([field.goalpost_right.left, field.goalpost_right.bottom]),
+                                field.goalpost_right.width, field.goalpost_right.height,
+                                fill=False, linewidth=line_width, color=stroke_color))
+
+        # penalty marks
+        if field.penalty_mark_left is not None:
+            ax.add_patch(Circle(center_point + np.array([field.penalty_mark_left.x, field.penalty_mark_left.y]), radius=0.1, color=stroke_color))
+        if field.penalty_mark_right is not None:
+            ax.add_patch(Circle(center_point + np.array([field.penalty_mark_right.x, field.penalty_mark_right.y]), radius=0.1, color=stroke_color))
+
+        return fig, ax, center_point
+ 
     def plot_shot_frequency(self) -> tuple[Figure, Axes]:
         """
         Plots shot frequency hexbin graph in the pitch and returns figure and axes where it was drawn.
@@ -501,3 +556,32 @@ class JupyterAdapter:
         ax.legend()
 
         plt.show()
+
+    def object_positions(
+            self,
+            positions,
+            fig=None,
+            ax=None,
+            center_point_offset: Optional[np.ndarray] = None,
+            hue = 'z',
+            palette = None) -> tuple[Figure, Axes, np.ndarray]:
+        sns.set_theme()
+
+        positions = positions.copy()
+        if fig is None or ax is None:
+            fig, ax, center_point_offset = self.draw_HLKid_pitch(self.__match_analyzer.match.field)
+
+        if center_point_offset is not None:
+            positions['x'] = positions['x'] + center_point_offset[0]
+            positions['y'] = positions['y'] + center_point_offset[1]
+
+        sns.scatterplot(positions, x='x', y='y', ax=ax, hue=hue, palette=palette, s=10)
+
+        return fig, ax, center_point_offset
+
+    def filter_positions(self, positions):
+        # Filter out positions that are outside the pitch
+        mask = (positions >= -10) & (positions <= 10)
+        filtered_positions = positions[mask.all(axis=1)]
+
+        return filtered_positions
